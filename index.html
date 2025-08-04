@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peta Latar Cyberpunk - ULTIMATE</title>
+    
+    <!-- Memuat Pustaka CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+     crossorigin=""/>
+    
+    <!-- Memuat Tailwind CSS untuk styling cepat -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Memuat Google Fonts untuk tema cyberpunk -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    
+    <!-- Memuat Pustaka JavaScript di Head -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+     integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+     crossorigin=""></script>
+
+    <!-- CSS Kustom untuk tema Cyberpunk -->
+    <style>
+        /* Mengatur font dasar dan warna */
+        body {
+            font-family: 'Share Tech Mono', monospace;
+            background-color: #0d0d1a;
+            color: #00f6ff;
+            overflow: hidden;
+        }
+
+        /* Kontainer peta diatur sebagai latar belakang */
+        #map {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            background-color: #050510;
+        }
+        
+        /* Konten utama ditempatkan di atas peta */
+        main {
+            position: relative;
+            z-index: 10;
+            opacity: 0;
+            transition: opacity 1.5s ease-in-out;
+        }
+
+        /* Gaya untuk judul utama */
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            text-shadow: 0 0 5px #00f6ff, 0 0 10px #00f6ff, 0 0 20px #ff00c1, 0 0 30px #ff00c1;
+        }
+
+        /* Efek scanlines */
+        .scanlines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 2;
+            background: linear-gradient(to bottom, rgba(13, 13, 26, 0) 0%, rgba(13, 13, 26, 0.4) 50%, rgba(13, 13, 26, 0) 100%);
+            background-size: 100% 4px;
+            animation: scan 7s linear infinite;
+        }
+        @keyframes scan { from { background-position: 0 0; } to { background-position: 0 100px; } }
+
+        /* Kustomisasi popup di peta */
+        .leaflet-popup-content-wrapper {
+            background: rgba(13, 13, 26, 0.95);
+            color: #00f6ff;
+            border: 1px solid #ff00c1;
+            box-shadow: 0 0 15px rgba(255, 0, 193, 0.7);
+            border-radius: 0;
+        }
+        .leaflet-popup-tip { background: #ff00c1; }
+        .leaflet-popup-content { font-size: 14px; margin: 10px; }
+        .leaflet-container a.leaflet-popup-close-button { color: #00f6ff; }
+        .popup-header { font-family: 'Orbitron', sans-serif; color: #ff00c1; border-bottom: 1px solid #ff00c1; padding-bottom: 5px; margin-bottom: 10px; }
+        .popup-line { margin-bottom: 5px; }
+        .popup-line span { color: white; }
+
+        /* --- STYLING OVERLAY --- */
+        .overlay { position: fixed; inset: 0; background-color: rgba(0,0,0,0.75); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 50; transition: opacity 1.5s ease-out; }
+        .overlay.hidden { opacity: 0; pointer-events: none; }
+        
+        /* --- ELEMEN VISUAL BARU --- */
+        #system-info { position: absolute; bottom: 1rem; left: 1rem; z-index: 20; text-shadow: 0 0 5px #ff00c1; }
+        #system-clock { position: absolute; top: 1rem; right: 1rem; z-index: 20; text-shadow: 0 0 5px #00f6ff; text-align: right; }
+        .vignette-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 40; box-shadow: inset 0 0 15vw rgba(0,0,0,0.8); }
+        
+        .type-cursor { display: inline-block; background-color: #00f6ff; margin-left: 2px; animation: blink 1s step-end infinite; }
+        @keyframes blink { from, to { background-color: transparent } 50% { background-color: #00f6ff; } }
+        
+        /* --- STYLING LINGKARAN BERKEDIP --- */
+        .blinking-marker-container { position: relative; width: 24px; height: 24px; overflow: visible !important; }
+        .blinking-marker { position: relative; width: 100%; height: 100%; }
+        .blinking-marker .ring { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border-radius: 50%; border: 2px solid #00f6ff; animation: ring-pulse 2.5s infinite cubic-bezier(0.215, 0.61, 0.355, 1); }
+        .blinking-marker .ring:nth-child(2) { animation-delay: 0.8s; }
+        .blinking-marker .dot { position: absolute; top: 50%; left: 50%; width: 8px; height: 8px; margin-top: -4px; margin-left: -4px; border-radius: 50%; background: #00f6ff; box-shadow: 0 0 5px #00f6ff, 0 0 10px #00f6ff; }
+        @keyframes ring-pulse { 0% { transform: scale(0.1); opacity: 1; } 70% { transform: scale(1.2); opacity: 0; } 100% { opacity: 0; } }
+        /* Variasi warna pink */
+        .blinking-marker.pink .ring { border-color: #ff00c1; }
+        .blinking-marker.pink .dot { background: #ff00c1; box-shadow: 0 0 5px #ff00c1, 0 0 10px #ff00c1; }
+        
+        /* --- BOOT SEQUENCE --- */
+        #boot-overlay { background-color: #0d0d1a; align-items: flex-start; justify-content: flex-start; padding: 2rem; }
+        #boot-text { font-size: 1.1rem; white-space: pre-wrap; width: 100%; }
+        .progress-bar-container { width: 100%; height: 20px; background-color: #1a1a3a; border: 1px solid #00f6ff; margin-top: 5px; margin-bottom: 15px; display: none; }
+        .progress-bar { width: 0%; height: 100%; background-color: #ff00c1; transition: width 0.1s linear; }
+        .progress-text { color: #ff00c1; margin-left: 10px; }
+        
+        /* --- TOMBOL UNMUTE --- */
+        #unmute-button { position: fixed; z-index: 100; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 1rem 2rem; border: 2px solid #ff00c1; color: #ff00c1; background: rgba(0,0,0,0.8); font-size: 1.5rem; cursor: pointer; transition: all 0.3s; }
+        #unmute-button:hover { background: #ff00c1; color: black; box-shadow: 0 0 20px #ff00c1; }
+
+        /* --- STYLING ATRIBUSI --- */
+        .attribution { font-size: 10px; color: #555; margin-top: 1rem; }
+        .attribution a { color: #888; text-decoration: none; }
+        .attribution a:hover { color: #ff00c1; }
+        
+        /* --- PENYESUAIAN RESPONSIVE --- */
+        @media (max-width: 640px) {
+            #system-info, #system-clock { font-size: 10px; }
+            #boot-text { font-size: 0.9rem; padding: 1rem; }
+            .attribution { font-size: 8px; }
+        }
+    </style>
+</head>
+<body class="p-4">
+    <!-- Efek Visual Tambahan -->
+    <div id="map"></div>
+    <div class="scanlines"></div>
+    <div class="vignette-overlay"></div>
+
+    <!-- Info Sistem Fiktif -->
+    <div id="system-info" class="hidden">
+        <p>SYSTEM LOAD: <span id="sys-load">0</span>%</p>
+        <p>UPLINK: <span id="sys-uplink">0</span> MB/s</p>
+        <p>PING: <span id="sys-ping">0</span> ms</p>
+        <p>ENCRYPTION: <span id="sys-encryption">CHECKING...</span></p>
+        <p class="attribution">
+            Music by <a href="https://pixabay.com/users/grand_project-19033979/?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=10701" target="_blank">Grand_Project</a> from <a href="https://pixabay.com/music//?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=10701" target="_blank">Pixabay</a>
+        </p>
+    </div>
+    <div id="system-clock" class="hidden">
+        <p id="clock-time">00:00:00</p>
+        <p id="clock-date">01-JAN-2077</p>
+    </div>
+
+    <!-- Konten Utama (Awalnya Tersembunyi) -->
+    <main class="w-full max-w-4xl mx-auto text-center px-4">
+        <div class="mt-8">
+            <h1 id="main-title" class="text-3xl md:text-5xl font-bold" data-text="">&nbsp;</h1>
+            <p id="main-subtitle" class="text-xl md:text-3xl font-bold text-cyan-300 mt-2" data-text="">&nbsp;</p>
+            <p id="status" class="text-pink-500 text-lg h-6 mt-4"></p>
+        </div>
+    </main>
+    
+    <!-- Overlays -->
+    <div id="boot-overlay" class="overlay">
+        <div id="boot-text"></div>
+    </div>
+    <div id="login-overlay" class="overlay hidden">
+        <div class="w-full max-w-sm p-6 sm:p-8 border-2 border-cyan-400 rounded-lg shadow-[0_0_20px_rgba(0,246,255,0.5)] bg-black bg-opacity-50 mx-4">
+            <h2 class="text-2xl sm:text-3xl font-bold text-center text-cyan-400 mb-2">AGENT LOGIN</h2>
+            <p class="text-center text-pink-500 mb-8">Authorization Required</p>
+            <form id="login-form">
+                <div class="mb-6">
+                    <label for="agent-id" class="block text-cyan-400 mb-2">AGENT ID</label>
+                    <input type="text" id="agent-id" class="w-full bg-transparent border-b-2 border-cyan-400/50 focus:border-cyan-400 text-white p-2 outline-none transition duration-300" required>
+                </div>
+                <div class="mb-8">
+                    <label for="access-code" class="block text-cyan-400 mb-2">ACCESS CODE</label>
+                    <input type="password" id="access-code" class="w-full bg-transparent border-b-2 border-cyan-400/50 focus:border-cyan-400 text-white p-2 outline-none transition duration-300" required>
+                </div>
+                <button type="submit" id="connect-button" class="w-full py-3 px-4 bg-transparent border-2 border-pink-500 text-pink-500 font-bold uppercase rounded-lg hover:bg-pink-500 hover:text-black hover:shadow-[0_0_15px_rgba(255,0,193,0.8)] transition-all duration-300 flex items-center justify-center">
+                    <span id="button-text">Connect</span>
+                    <div id="loader" class="hidden w-6 h-6 border-2 border-dashed rounded-full animate-spin border-cyan-400"></div>
+                </button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Tombol Unmute -->
+    <button id="unmute-button">UNMUTE</button>
+
+    <!-- Elemen Audio -->
+    <audio id="bg-music" loop src="https://cdn.pixabay.com/download/audio/2022/01/18/audio_c5b4975081.mp3"></audio>
+    <audio id="sfx-typing" src="https://cdn.pixabay.com/download/audio/2022/05/27/audio_23024945f9.mp3"></audio>
+    <audio id="sfx-hover" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_a9993a48a2.mp3"></audio>
+    <audio id="sfx-click" src="https://cdn.pixabay.com/download/audio/2021/08/04/audio_5013e8ac0a.mp3"></audio>
+    <audio id="sfx-notify" src="https://cdn.pixabay.com/download/audio/2022/03/10/audio_e096a1df86.mp3"></audio>
+    <audio id="sfx-glitch" src="https://cdn.pixabay.com/download/audio/2022/01/21/audio_c38a424287.mp3"></audio>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- Koordinat Target ---
+            const targetLat = 0.9995808;
+            const targetLon = 102.7261775;
+            const finalZoomLevel = 15;
+
+            // --- Inisialisasi Peta ---
+            const map = L.map('map', { zoomControl: false, scrollWheelZoom: false, dragging: false, touchZoom: false, doubleClickZoom: false }).setView([targetLat, targetLon], 2);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CARTO', subdomains: 'abcd', maxZoom: 20 }).addTo(map);
+
+            // --- Referensi Elemen DOM & Audio ---
+            const dom = {
+                bootOverlay: document.getElementById('boot-overlay'),
+                bootText: document.getElementById('boot-text'),
+                loginOverlay: document.getElementById('login-overlay'),
+                loginForm: document.getElementById('login-form'),
+                connectButton: document.getElementById('connect-button'),
+                buttonText: document.getElementById('button-text'),
+                loader: document.getElementById('loader'),
+                mainContent: document.querySelector('main'),
+                mainTitle: document.getElementById('main-title'),
+                mainSubtitle: document.getElementById('main-subtitle'),
+                statusEl: document.getElementById('status'),
+                systemInfoEl: document.getElementById('system-info'),
+                systemClockEl: document.getElementById('system-clock'),
+                unmuteButton: document.getElementById('unmute-button'),
+                encryptionStatus: document.getElementById('sys-encryption'),
+                pingStatus: document.getElementById('sys-ping')
+            };
+            const sfx = {
+                music: document.getElementById('bg-music'),
+                typing: document.getElementById('sfx-typing'),
+                hover: document.getElementById('sfx-hover'),
+                click: document.getElementById('sfx-click'),
+                notify: document.getElementById('sfx-notify'),
+                glitch: document.getElementById('sfx-glitch'),
+                speech: window.speechSynthesis
+            };
+            sfx.typing.loop = true;
+
+            // --- Inisialisasi Audio ---
+            let isMuted = true;
+            dom.unmuteButton.addEventListener('click', () => {
+                isMuted = false;
+                sfx.music.play().catch(e => console.error("Audio play failed:", e));
+                sfx.music.volume = 0.3;
+                dom.unmuteButton.style.display = 'none';
+            });
+
+            // --- Fungsi Utilitas ---
+            function playSound(sound) { if (!isMuted) {sound.currentTime = 0; sound.play().catch(e => {});} }
+            function typewriter(element, text, callback) {
+                let i = 0;
+                element.innerHTML = "";
+                const cursor = document.createElement('span');
+                cursor.className = 'type-cursor';
+                cursor.innerHTML = '&#9646;';
+                element.appendChild(cursor);
+                
+                playSound(sfx.typing);
+                const typingInterval = setInterval(() => {
+                    if (i < text.length) {
+                        cursor.insertAdjacentText('beforebegin', text.charAt(i));
+                        i++;
+                    } else {
+                        clearInterval(typingInterval);
+                        sfx.typing.pause();
+                        if (callback) setTimeout(callback, 500);
+                    }
+                }, 50);
+            }
+            function speak(text) {
+                if ('speechSynthesis' in window && !isMuted) {
+                    sfx.speech.cancel();
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = 'en-US';
+                    utterance.pitch = 0.2;
+                    utterance.rate = 0.8;
+                    sfx.speech.speak(utterance);
+                }
+            }
+            function updateClock() {
+                const now = new Date();
+                const time = now.toTimeString().split(' ')[0];
+                const date = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-').toUpperCase();
+                document.getElementById('clock-time').textContent = time;
+                document.getElementById('clock-date').textContent = date;
+            }
+            
+            function checkEncryption() {
+                if (window.location.protocol === 'https:') {
+                    dom.encryptionStatus.textContent = 'ACTIVE (SSL)';
+                    dom.encryptionStatus.style.color = '#00f6ff';
+                } else {
+                    dom.encryptionStatus.textContent = 'COMPROMISED';
+                    dom.encryptionStatus.style.color = '#ff003c';
+                }
+            }
+
+            // --- Logika Aplikasi ---
+            async function startBootSequence() {
+                const bootSteps = [
+                    { text: "> CONNECTING TO DATA SOURCE: 1rS7TcNEfIB...", duration: 2000, success: "[CONNECTED]" },
+                    { text: "> READING SHEETS...", duration: 1500, success: "[FOUND: 3]" },
+                    { text: "> CHECKING FOR GEMINI API KEY...", duration: 1000, success: "[SKIPPED]" },
+                    { text: "> VERIFYING API STATUS...", duration: 800, success: "[STANDBY]" },
+                    { text: "> AWAITING AGENT AUTHENTICATION...", duration: 500, success: "" }
+                ];
+
+                for (const step of bootSteps) {
+                    const lineEl = document.createElement('div');
+                    dom.bootText.appendChild(lineEl);
+                    
+                    const progressContainer = document.createElement('div');
+                    progressContainer.className = 'progress-bar-container';
+                    const progressBar = document.createElement('div');
+                    progressBar.className = 'progress-bar';
+                    const progressText = document.createElement('span');
+                    progressText.className = 'progress-text';
+                    progressContainer.appendChild(progressBar);
+                    progressContainer.appendChild(progressText);
+                    
+                    await new Promise(resolve => typewriter(lineEl, step.text, resolve));
+                    
+                    dom.bootText.appendChild(progressContainer);
+                    progressContainer.style.display = 'flex';
+
+                    await new Promise(resolve => {
+                        let progress = 0;
+                        const interval = setInterval(() => {
+                            progress++;
+                            progressBar.style.width = `${progress}%`;
+                            progressText.textContent = `${progress}%`;
+                            if (progress >= 100) {
+                                clearInterval(interval);
+                                lineEl.innerHTML += ` <span class="text-cyan-400">${step.success}</span>`;
+                                setTimeout(resolve, 200);
+                            }
+                        }, step.duration / 100);
+                    });
+                     progressContainer.style.display = 'none';
+                }
+
+                setTimeout(() => {
+                    dom.bootOverlay.classList.add('hidden');
+                    dom.loginOverlay.classList.remove('hidden');
+                }, 1000);
+            }
+
+            dom.loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                playSound(sfx.click);
+                dom.buttonText.classList.add('hidden');
+                dom.loader.classList.remove('hidden');
+                dom.connectButton.disabled = true;
+
+                setTimeout(() => {
+                    playSound(sfx.glitch);
+                    dom.loginOverlay.classList.add('hidden');
+                    dom.mainContent.style.opacity = '1';
+                    dom.systemInfoEl.classList.remove('hidden');
+                    dom.systemClockEl.classList.remove('hidden');
+                    startSystem();
+                }, 2500);
+            });
+
+            function startSystem() {
+                setInterval(() => {
+                    document.getElementById('sys-load').textContent = (Math.random() * (95 - 70) + 70).toFixed(2);
+                    document.getElementById('sys-uplink').textContent = (Math.random() * (35 - 15) + 15).toFixed(2);
+                    dom.pingStatus.textContent = Math.floor(Math.random() * (120 - 15) + 15);
+                }, 1500);
+                
+                updateClock();
+                setInterval(updateClock, 1000);
+                checkEncryption();
+                
+                startMapAnimation();
+            }
+
+            function startMapAnimation() {
+                const searchLocations = [
+                    { coords: [35.6895, 139.6917], name: "Tokyo" },
+                    { coords: [51.5072, -0.1276], name: "London" },
+                    { coords: [-33.8688, 151.2093], name: "Sydney" },
+                ];
+                let searchIndex = 0;
+                function searchNext() {
+                    if (searchIndex < searchLocations.length) {
+                        const loc = searchLocations[searchIndex];
+                        typewriter(dom.statusEl, `Searching... Rerouting to ${loc.name}...`);
+                        map.flyTo(loc.coords, 4, { animate: true, duration: 1.5 });
+                        searchIndex++;
+                        setTimeout(searchNext, 2000);
+                    } else {
+                        lockOnTarget();
+                    }
+                }
+                searchNext();
+            }
+
+            function lockOnTarget() {
+                typewriter(dom.statusEl, "Signal found! Locking target...", () => {
+                    playSound(sfx.notify);
+                    map.flyTo([targetLat, targetLon], finalZoomLevel, { animate: true, duration: 8 });
+                });
+                map.once('zoomend', function() {
+                    if (map.getZoom() === finalZoomLevel) {
+                        typewriter(dom.statusEl, 'STATUS: Target Locked. System Active.');
+                        
+                        const titleText = "WELCOME TO THE DPRD PORTAL";
+                        const subtitleText = "Kepulauan Meranti Regency";
+                        
+                        typewriter(dom.mainTitle, titleText, () => {
+                            typewriter(dom.mainSubtitle, subtitleText, () => {
+                                speak("Welcome to the D P R D Portal... Kepulauan Meranti Regency.");
+                            });
+                        });
+
+                        deployDataNodes();
+                    }
+                });
+            }
+            
+            function createBlinkingMarker(colorClass = '') {
+                return L.divIcon({
+                    className: 'blinking-marker-container',
+                    html: `<div class="blinking-marker ${colorClass}"><div class="ring"></div><div class="ring"></div><div class="dot"></div></div>`,
+                    iconSize: [24, 24],
+                    iconAnchor: [12, 12]
+                });
+            }
+
+            const targetMarker = L.marker([targetLat, targetLon], { icon: createBlinkingMarker() }).addTo(map);
+            targetMarker.bindPopup(`<b>Lokasi Target:</b><br>${targetLat.toFixed(5)}, ${targetLon.toFixed(5)}`).openPopup();
+
+            function deployDataNodes() {
+                const dataNodes = [
+                    { coords: [1.035, 102.720], name: "Data Node Alpha", id: "7A-3B1-C9", strength: "98.7%", clearance: 2 },
+                    { coords: [1.015, 102.705], name: "Rogue Signal", id: "RX-99-Z0", strength: "45.1%", clearance: 4 },
+                    { coords: [1.005, 102.735], name: "Encrypted Packet", id: "PK-303-T7", strength: "UNKNOWN", clearance: 5 }
+                ];
+                
+                dataNodes.forEach(node => {
+                    const popupContent = `
+                        <div class="popup-header">// ${node.name} //</div>
+                        <div class="popup-line">ID: <span>${node.id}</span></div>
+                        <div class="popup-line">SIGNAL: <span>${node.strength}</span></div>
+                        <div class="popup-line">ACCESS: <span>REQUIRES LVL ${node.clearance} CLEARANCE</span></div>
+                    `;
+                    L.marker(node.coords, { icon: createBlinkingMarker('pink') }).addTo(map).bindPopup(popupContent);
+                });
+            }
+            
+            document.querySelectorAll('button, a, input').forEach(el => {
+                el.addEventListener('mouseenter', () => playSound(sfx.hover));
+            });
+
+            startBootSequence();
+        });
+    </script>
+</body>
+</html>
+
