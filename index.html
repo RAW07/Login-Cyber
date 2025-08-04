@@ -246,13 +246,31 @@
             let isMuted = true;
             dom.unmuteButton.addEventListener('click', () => {
                 isMuted = false;
-                sfx.music.play().catch(e => console.error("Audio play failed:", e));
-                sfx.music.volume = 0.3;
                 dom.unmuteButton.style.display = 'none';
-            });
+
+                const musicPromise = sfx.music.play();
+                if (musicPromise !== undefined) {
+                    musicPromise.then(() => {
+                        sfx.music.volume = 0.3;
+                        console.log("Music playback started successfully.");
+                    }).catch(error => {
+                        console.error("Music playback failed:", error);
+                        dom.statusEl.textContent = "ERROR: AUDIO FAILED TO PLAY. PLEASE REFRESH.";
+                        dom.statusEl.style.color = '#ff003c';
+                    });
+                }
+            }, { once: true });
 
             // --- Fungsi Utilitas ---
-            function playSound(sound) { if (!isMuted) {sound.currentTime = 0; sound.play().catch(e => {});} }
+            function playSound(sound) {
+                if (isMuted) return;
+                try {
+                    sound.currentTime = 0;
+                    sound.play().catch(e => {});
+                } catch (error) {
+                    console.error(`Could not play sound ${sound.id}:`, error);
+                }
+            }
             function typewriter(element, text, callback) {
                 let i = 0;
                 element.innerHTML = "";
