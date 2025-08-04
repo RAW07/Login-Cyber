@@ -112,15 +112,15 @@
         .blinking-marker.pink .dot { background: #ff00c1; box-shadow: 0 0 5px #ff00c1, 0 0 10px #ff00c1; }
         
         /* --- BOOT SEQUENCE --- */
-        #boot-overlay { background-color: #0d0d1a; align-items: flex-start; justify-content: flex-start; padding: 2rem; }
-        #boot-text { font-size: 1.1rem; white-space: pre-wrap; width: 100%; }
+        #boot-overlay { background-color: #0d0d1a; }
+        #boot-text-container { font-size: 1.1rem; white-space: pre-wrap; width: 100%; padding: 2rem; display: none; }
         .progress-bar-container { width: 100%; height: 20px; background-color: #1a1a3a; border: 1px solid #00f6ff; margin-top: 5px; margin-bottom: 15px; display: none; }
         .progress-bar { width: 0%; height: 100%; background-color: #ff00c1; transition: width 0.1s linear; }
         .progress-text { color: #ff00c1; margin-left: 10px; }
         
-        /* --- TOMBOL UNMUTE --- */
-        #unmute-button { position: fixed; z-index: 100; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 1rem 2rem; border: 2px solid #ff00c1; color: #ff00c1; background: rgba(0,0,0,0.8); font-size: 1.5rem; cursor: pointer; transition: all 0.3s; }
-        #unmute-button:hover { background: #ff00c1; color: black; box-shadow: 0 0 20px #ff00c1; }
+        /* --- TOMBOL START --- */
+        #start-button { padding: 1rem 2rem; border: 2px solid #ff00c1; color: #ff00c1; background: rgba(0,0,0,0.8); font-size: 1.5rem; cursor: pointer; transition: all 0.3s; font-family: 'Orbitron', sans-serif; }
+        #start-button:hover { background: #ff00c1; color: black; box-shadow: 0 0 20px #ff00c1; }
 
         /* --- STYLING ATRIBUSI --- */
         .attribution { font-size: 10px; color: #555; margin-top: 1rem; }
@@ -130,7 +130,7 @@
         /* --- PENYESUAIAN RESPONSIVE --- */
         @media (max-width: 640px) {
             #system-info, #system-clock { font-size: 10px; }
-            #boot-text { font-size: 0.9rem; padding: 1rem; }
+            #boot-text-container { font-size: 0.9rem; padding: 1rem; }
             .attribution { font-size: 8px; }
         }
     </style>
@@ -167,7 +167,8 @@
     
     <!-- Overlays -->
     <div id="boot-overlay" class="overlay">
-        <div id="boot-text"></div>
+        <button id="start-button">START SYSTEM</button>
+        <div id="boot-text-container"></div>
     </div>
     <div id="login-overlay" class="overlay hidden">
         <div class="w-full max-w-sm p-6 sm:p-8 border-2 border-cyan-400 rounded-lg shadow-[0_0_20px_rgba(0,246,255,0.5)] bg-black bg-opacity-50 mx-4">
@@ -190,9 +191,6 @@
         </div>
     </div>
     
-    <!-- Tombol Unmute -->
-    <button id="unmute-button">UNMUTE</button>
-
     <!-- Elemen Audio -->
     <audio id="bg-music" loop src="https://cdn.pixabay.com/download/audio/2022/01/18/audio_c5b4975081.mp3"></audio>
     <audio id="sfx-typing" src="https://cdn.pixabay.com/download/audio/2022/05/27/audio_23024945f9.mp3"></audio>
@@ -215,7 +213,7 @@
             // --- Referensi Elemen DOM & Audio ---
             const dom = {
                 bootOverlay: document.getElementById('boot-overlay'),
-                bootText: document.getElementById('boot-text'),
+                bootTextContainer: document.getElementById('boot-text-container'),
                 loginOverlay: document.getElementById('login-overlay'),
                 loginForm: document.getElementById('login-form'),
                 connectButton: document.getElementById('connect-button'),
@@ -227,7 +225,7 @@
                 statusEl: document.getElementById('status'),
                 systemInfoEl: document.getElementById('system-info'),
                 systemClockEl: document.getElementById('system-clock'),
-                unmuteButton: document.getElementById('unmute-button'),
+                startButton: document.getElementById('start-button'),
                 encryptionStatus: document.getElementById('sys-encryption'),
                 pingStatus: document.getElementById('sys-ping')
             };
@@ -244,32 +242,29 @@
 
             // --- Inisialisasi Audio ---
             let isMuted = true;
-            dom.unmuteButton.addEventListener('click', () => {
+            dom.startButton.addEventListener('click', () => {
                 isMuted = false;
-                dom.unmuteButton.style.display = 'none';
+                dom.startButton.style.display = 'none';
+                dom.bootTextContainer.style.display = 'block';
 
                 const musicPromise = sfx.music.play();
                 if (musicPromise !== undefined) {
                     musicPromise.then(() => {
                         sfx.music.volume = 0.3;
-                        console.log("Music playback started successfully.");
                     }).catch(error => {
                         console.error("Music playback failed:", error);
-                        dom.statusEl.textContent = "ERROR: AUDIO FAILED TO PLAY. PLEASE REFRESH.";
+                        dom.statusEl.textContent = "ERROR: AUDIO BLOCKED BY BROWSER.";
                         dom.statusEl.style.color = '#ff003c';
                     });
                 }
+                startBootSequence();
             }, { once: true });
 
             // --- Fungsi Utilitas ---
             function playSound(sound) {
                 if (isMuted) return;
-                try {
-                    sound.currentTime = 0;
-                    sound.play().catch(e => {});
-                } catch (error) {
-                    console.error(`Could not play sound ${sound.id}:`, error);
-                }
+                sound.currentTime = 0;
+                sound.play().catch(e => {});
             }
             function typewriter(element, text, callback) {
                 let i = 0;
@@ -331,7 +326,7 @@
 
                 for (const step of bootSteps) {
                     const lineEl = document.createElement('div');
-                    dom.bootText.appendChild(lineEl);
+                    dom.bootTextContainer.appendChild(lineEl);
                     
                     const progressContainer = document.createElement('div');
                     progressContainer.className = 'progress-bar-container';
@@ -344,7 +339,7 @@
                     
                     await new Promise(resolve => typewriter(lineEl, step.text, resolve));
                     
-                    dom.bootText.appendChild(progressContainer);
+                    dom.bootTextContainer.appendChild(progressContainer);
                     progressContainer.style.display = 'flex';
 
                     await new Promise(resolve => {
@@ -477,8 +472,6 @@
             document.querySelectorAll('button, a, input').forEach(el => {
                 el.addEventListener('mouseenter', () => playSound(sfx.hover));
             });
-
-            startBootSequence();
         });
     </script>
 </body>
